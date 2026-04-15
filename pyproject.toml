@@ -1,10 +1,9 @@
 [project]
-name = "ai-shorts-generator"
+name = "ClipMind"
 version = "0.1.0"
-description = "Add your description here"
+description = "The streamlit app"
 readme = "README.md"
 requires-python = "==3.10.16"
 dependencies = [
-    "moviepy>=2.2.1",
     "requests>=2.33.1",
 ]
