@@ -1,6 +1,10 @@
 import requests
+from dotenv import load_dotenv
+import os
 
-url = "https://8000-01kp3d2w8xvgd8t73ff8ebgdj5.cloudspaces.litng.ai/transcribe"
+load_dotenv()
+
+url = os.getenv("LIGHTNING_API_URL")+"/transcribe"
 
 file_path = "audios/010.wav"
 
