@@ -2,7 +2,13 @@
 - The idea is developing a tool to automate shorts creation from input videos , editing and publish on Youtube
 # High Level pipeline
 
-<img src = "images/1.png" />
+```mermaid
+flowchart TD
+    A(Ingestion) --> B(Content Understanding) --> C(Clipping) --> D(Editing) --> E(Metadata Generation) --> F(Publishing)
+
+    linkStyle default stroke:#ffff,stroke-width:2px
+
+```
 
 - Based on my little research about the best length for Youtube shorts, I found the best duration is between **15s-30s**, so you can maximize the watching-time in order to get more viewers.
 
@@ -17,7 +23,62 @@ The input is a video file in mp4 format *(youtube video, TV show episode...)*
 - I tested **gemini-3-flash-preview** to summarize a 10 min interview video, and it performed very well. **gemini-3.1-flash-lite-preview** is also an option with high RPD **(of 500)**, but to be honest the summary of **gemini-3-flash-preview** is better.
 - In the both previous models the context window is **250k** token. A video of 30 min consumed **172k** token, but the model hallucinate **( it repeated 4 same sentences hhh)** that was expected because of the huge context, so I think the **10 min** is suitable for the model capability.
 
-- Dividing the long video to 10 min segments --> VLM summarize each segment --> LLM decides the best segment for the short based on the summaries --> VLM defines the **(start, end, why)** of the 30 seconds best short from the selected segment.
+#### First Workflow
+
+```mermaid
+flowchart TD
+    A(Long Video Input) --> B(Split into 10 min segments)
+
+    B --> C1(Segment 1)
+    B --> C2(Segment 2)
+    B --> C3(...)
+
+    C1 --> D1(VLM Summarize)
+    C2 --> D1(VLM Summarize)
+    C3 --> D1(VLM Summarize)
+
+    D1 --> E(Collect Summaries)
+
+    E --> F(LLM Select Best Segment)
+
+    F --> G(VLM Analyze Selected Segment)
+
+    G --> H(Start, End, Why)
+
+    linkStyle default stroke:#ffff,stroke-width:2px
+    style A fill:#FEC671
+    style H fill:#81C2E0
+```
+
+❌ Weak summary could hide an epic short.
+❌ Summaries lack hook moments (emotions, surprise...)
+
+#### Second Workflow
+
+```mermaid
+flowchart TD
+    A(Long Video Input) --> B(Split into 10 min Segments)
+
+    B --> C1(Segment 1)
+    B --> C2(Segment 2)
+    B --> C3(...)
+
+    C1 --> D1(VLM Top-K Clips + Scoring)
+    C2 --> D1(VLM Top-K Clips + Scoring)
+    C3 --> D1(VLM Top-K Clips + Scoring)
+
+    D1 --> E(Collect All Candidate Clips)
+
+    E --> F(LLM Global Ranking)
+
+    F --> G(Select Top N Clips)
+
+    G --> H(Final Top N Clips Output)
+
+    linkStyle default stroke:#ffff,stroke-width:2px
+    style A fill:#FEC671
+    style H fill:#81C2E0
+```
 
 
 ### Second approach 
