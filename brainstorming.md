@@ -13,7 +13,12 @@ The input is a video file in mp4 format *(youtube video, TV show episode...)*
 ## Content understanding 
 
 ### First approach 
-- Using a VLM that understand visual content and decide the epic moment(s) of the video. This methodology has a constraint especially with long videos and rate limits in free trier.
+- Using a VLM that understand visual content and decide the epic moment(s) of the video. The most generous provider until now is Google Refer to [her](https://aistudio.google.com/rate-limit?timeRange=last-1-day&project=ai-shorts-tool-493100) for rate limits details.
+- I tested **gemini-3-flash-preview** to summarize a 10 min interview video, and it performed very well. **gemini-3.1-flash-lite-preview** is also an option with high RPD **(of 500)**, but to be honest the summary of **gemini-3-flash-preview** is better.
+- In the both previous models the context window is **250k** token. A video of 30 min consumed **172k** token, but the model hallucinate **( it repeated 4 same sentences hhh)** that was expected because of the huge context, so I think the **10 min** is suitable for the model capability.
+
+- Dividing the long video to 10 min segments --> VLM summarize each segment --> LLM decides the best segment for the short based on the summaries --> VLM defines the **(start, end, why)** of the 30 seconds best short from the selected segment.
+
 
 ### Second approach 
 - Speech extraction
