@@ -7,36 +7,13 @@ import time
 import json
 
 
-
-def get_segments(input_path: str, output_dir: str, segment_length: int = 600):
-    """ 
-        This function divides an input long video into 10 min segments,
-        saved then temporary into a diractory.
-
-        Args:
-            input_path (str): long video file sytem path
-            output_dir (str):  diractory for the segments
-            segment_length (int) : segment duration in seconds
-    """
-    
-    with VideoFileClip(input_path) as video:
-        duration = video.end # Duration in seconds
-        num_segments = int(duration//segment_length)
-
-        for i in range(num_segments):
-            segment = video.subclipped(i*segment_length, (i+1)*segment_length)
-            segment_path = os.path.join(output_dir,f"{i}.mp4")
-            segment.write_videofile(segment_path)
-
-        remained_segment = video.subclipped(num_segments*segment_length, duration)
-        remained_segment.write_videofile(os.path.join(output_dir,f"{i+1}.mp4"))
-
 load_dotenv()
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY")) # Client object created once, when the module utils.py is loaded.
 K_VALUE = 3
+N_VALUE = 3
 DURATION = 30
 MODEL_NAME = "gemini-3-flash-preview" 
-SYS_PROMPT = f"""
+VLM_SYS_PROMPT = f"""
     You are an expert video content analyst specialized in identifying highly engaging short-form clips from long videos.
 
     Your task is to analyze a video segment and extract the TOP-{K_VALUE} most engaging short clips suitable for short-form platforms (e.g., Shorts, Reels, TikTok).
@@ -122,8 +99,130 @@ SYS_PROMPT = f"""
     - Do not exceed {DURATION} seconds per clip
 """
 
+LLM_SYS_PROMPT = f"""
+    You are an expert content strategist specializing in short-form video optimization.
 
-def parse_vlm_response(response_text: str) -> list[dict]:
+    Your task is to rank and select the best clips for short-form content (Shorts, Reels, TikTok) from a list of candidate clips.
+
+    ----------------------------------------
+    OBJECTIVE
+    ----------------------------------------
+    Select the TOP-{N_VALUE} clips that:
+    - Maximize virality and engagement
+    - Have strong hooks in the first seconds
+    - Are diverse in topic (avoid redundancy)
+
+    ----------------------------------------
+    INPUT DESCRIPTION
+    ----------------------------------------
+    Each clip contains:
+    - clip_name: unique identifier
+    - start, end: timestamps
+    - title: short hook/title
+    - summary: short description
+    - scores: numeric signals (0–10) from a prior model:
+    - hook: strength of first seconds
+    - engagement: retention potential
+    - emotion: emotional intensity
+
+    You must use these signals but NOT copy them directly.
+
+    ----------------------------------------
+    SELECTION RULES
+    ----------------------------------------
+    - Prioritize: hook > engagement > standalone
+    - Prefer clips with strong emotional or surprising elements
+    - Avoid selecting clips with similar topics
+    - Avoid overlapping timestamps
+    - If two clips are similar, select the stronger one
+    - Penalize weak hooks and low standalone clarity
+
+    ----------------------------------------
+    OUTPUT FORMAT (STRICT JSON)
+    ----------------------------------------
+    Return a JSON array of selected clips:
+
+    [
+    
+        "clip_name": "string",
+        "rank": number,
+        "score": number,
+        "reason": "string"
+    
+    ]
+
+    ----------------------------------------
+    FIELD DEFINITIONS
+    ----------------------------------------
+
+    clip_name:
+    - Must exactly match one of the input clip names
+    - Used to reference the selected clip
+
+    rank:
+    - Integer starting from 1
+    - 1 = best clip
+    - Must be unique and sequential
+
+    score:
+    - A NEW overall score (0–10)
+    - Represents final global quality after comparing all clips
+    - Must NOT be copied directly from input scores
+    - Should reflect:
+    - hook strength
+    - engagement
+    - standalone 
+    - overall appeal
+    - Use full range (avoid clustering all scores between 8–10)
+
+    reason:
+    - Short explanation (max 15 words)
+    - Explain WHY the clip ranks highly
+
+    ----------------------------------------
+    CONSTRAINTS
+    ----------------------------------------
+    - Output ONLY valid JSON
+    - No markdown
+    - No explanations outside JSON
+    - No trailing commas
+    - Do not include clips not present in input
+    - Do not return more than {N_VALUE} clips
+
+    ----------------------------------------
+    FAILURE CONDITIONS (AVOID)
+    ----------------------------------------
+    - Do not assign identical scores to all clips
+    - Do not ignore diversity
+    - Do not select overlapping clips
+    - Do not produce vague reasons
+"""
+
+
+def get_segments(input_path: str, output_dir: str, segment_length: int = 600):
+    """ 
+        This function divides an input long video into 10 min segments,
+        saved then temporary into a diractory.
+
+        Args:
+            input_path (str): long video file sytem path
+            output_dir (str):  diractory for the segments
+            segment_length (int) : segment duration in seconds
+    """
+    
+    with VideoFileClip(input_path) as video:
+        duration = video.end # Duration in seconds
+        num_segments = int(duration//segment_length)
+
+        for i in range(num_segments):
+            segment = video.subclipped(i*segment_length, (i+1)*segment_length)
+            segment_path = os.path.join(output_dir,f"{i}.mp4")
+            segment.write_videofile(segment_path)
+
+        remained_segment = video.subclipped(num_segments*segment_length, duration)
+        remained_segment.write_videofile(os.path.join(output_dir,f"{i+1}.mp4"))
+
+def parse_response(response_text: str) -> list[dict]:
     try:
         return json.loads(response_text)
     except json.JSONDecodeError as e:
@@ -181,16 +280,48 @@ def vlm_top_clips(segment_path: str) -> str:
 
     response = client.models.generate_content(
         model= MODEL_NAME,
-        config=types.GenerateContentConfig(system_instruction= SYS_PROMPT),
+        config=types.GenerateContentConfig(system_instruction= VLM_SYS_PROMPT),
         contents=[video_file],
+    )
+    return response.text
+
+def llm_ranking(clips_path: str) -> str:
+    """
+        An LLM model ranks all candidates (clips) and determines the top-n shorts. 
+
+        Args:
+            clips_path (str): file system path of the candidates (json file).
+
+        Returns:
+            str: structred response containes informations 
+        Example :
+            [
+                {
+                    "clip_name": "010.mp4",
+                    "rank": 1,
+                    "score": 9.4,
+                    "reason": "Strong hook, high virality, and fully understandable without context"
+                }
+            ]
+    """
+
+    json_part = types.Part.from_bytes(
+    data=open(clips_path, "rb").read(),
+    mime_type="application/json")
+
+    response = client.models.generate_content(
+        model= MODEL_NAME,
+        config=types.GenerateContentConfig(system_instruction= LLM_SYS_PROMPT),
+        contents=[json_part],
     )
     return response.text
 
 
 
-response = parse_vlm_response(vlm_top_clips("temp/0.mp4"))
-print(len(response))
-print(response[0])
+
+# response = parse_vlm_response(vlm_top_clips("temp/0.mp4"))
+# print(len(response))
+# print(response[0])
 
 
 # get_segments("videos/01.mp4", "temp")

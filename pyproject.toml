@@ -8,5 +8,4 @@ dependencies = [
     "google-genai>=1.73.1",
     "moviepy>=2.2.1",
     "python-dotenv>=1.2.2",
-    "requests>=2.33.1",
 ]

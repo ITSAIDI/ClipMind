@@ -67,17 +67,14 @@ flowchart TD
     C2 --> D1(VLM Top-K Clips + Scoring)
     C3 --> D1(VLM Top-K Clips + Scoring)
 
-    D1 --> E(Collect All Candidate Clips)
+    D1 --> E(LLM Global Ranking)
 
-    E --> F(LLM Global Ranking)
+    E --> F(Final Top N Clips Output)
 
-    F --> G(Select Top N Clips)
-
-    G --> H(Final Top N Clips Output)
 
     linkStyle default stroke:#ffff,stroke-width:2px
     style A fill:#FEC671
-    style H fill:#81C2E0
+    style F fill:#81C2E0
 ```
 
 
