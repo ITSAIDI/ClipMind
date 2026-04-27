@@ -221,6 +221,50 @@ def get_segments(input_path: str, output_dir: str, segment_length: int = 600):
         remained_segment = video.subclipped(num_segments*segment_length, duration)
         remained_segment.write_videofile(os.path.join(output_dir,f"{i+1}.mp4")) # type: ignore
 
+def parse_timestamp(timestamp: str) -> int:
+
+    parts = [part for part in timestamp.split(":") if part != ""]
+    if len(parts) != 2:
+        raise ValueError(f"Invalid timestamp format: {timestamp}. Expected MM:SS")
+
+    minutes, seconds = parts
+    try:
+        minutes = int(minutes)
+        seconds = int(seconds)
+    except ValueError:
+        raise ValueError(f"Invalid timestamp format: {timestamp}. Expected MM:SS")
+
+    if minutes < 0 or seconds < 0 or seconds >= 60:
+        raise ValueError(f"Invalid timestamp value: {timestamp}. Seconds must be 0-59")
+
+    return minutes * 60 + seconds
+
+def clip_segment(segment_path: str, start_timestamp: str, end_timestamp: str, output_path: str) -> None:
+    """
+    Clip a segment file between two timestamp strings and save it to the given output file path.
+
+    Args:
+        segment_path (str): Path to the input segment video file.
+        start_timestamp (str): Start time as a string like "MM:SS".
+        end_timestamp (str): End time as a string like "MM:SS".
+        output_path (str): Full file path where the clipped video is saved.
+    """
+    
+    start_seconds = parse_timestamp(start_timestamp)
+    end_seconds = parse_timestamp(end_timestamp)
+
+    if end_seconds <= start_seconds:
+        raise ValueError("end_timestamp must be greater than start_timestamp")
+
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    with VideoFileClip(segment_path) as video:
+        clip = video.subclipped(start_seconds, end_seconds)
+        clip.write_videofile(str(output_file))
+
+    print(f"Saved clipped video to {output_file}")
+
 def parse_response(response_text: str) -> list[dict]:
     try:
         return json.loads(response_text)
@@ -344,11 +388,32 @@ def get_all_candidates(segments_dir: str, video_path: str, output_path: str):
         json.dump(all_candidates, f, indent=2)
         print(f"\n {output_path} saved")
 
+def clean_directory(directory_path: str) -> None:
+    """
+    Delete all files directly inside the given directory.
 
-# response = parse_response(vlm_top_clips("temp/0.mp4"))
-# print(len(response))
-# print(response[0])
+    Args:
+        directory_path (str): Path to the directory to clean.
+
+    Raises:
+        FileNotFoundError: If the directory does not exist.
+        NotADirectoryError: If the path is not a directory.
+    """
+    directory = Path(directory_path)
+
+    if not directory.exists():
+        raise FileNotFoundError(f"Directory not found: {directory_path}")
+    if not directory.is_dir():
+        raise NotADirectoryError(f"Not a directory: {directory_path}")
+
+    deleted_files = 0
+
+    for path in directory.iterdir():
+        if path.is_file():
+            path.unlink()
+            deleted_files += 1
+
+    print(f"Deleted {deleted_files} files from {directory_path}")
 
 
-# get_segments("videos/01.mp4", "temp")
 
