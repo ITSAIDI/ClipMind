@@ -7,13 +7,14 @@ import time
 import json
 import uuid
 from pathlib import Path
-
+import re
 
 load_dotenv()
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY")) # Client object created once, when the module utils.py is loaded.
-K_VALUE = 3
+K_VALUE = 2
 N_VALUE = 3
-DURATION = 30
+SEGMENT_DURATION = 600 # seconds
+SHORT_DURATION = 30 # seconds
 MODEL_NAME = "gemini-3-flash-preview" 
 VLM_SYS_PROMPT = f"""
     You are an expert video content analyst specialized in identifying highly engaging short-form clips from long videos.
@@ -32,7 +33,7 @@ VLM_SYS_PROMPT = f"""
     - Be understandable without external context (standalone).
     - Contain a strong hook within the first few seconds.
     - Have clear boundaries (do not cut mid-sentence or mid-thought).
-    - Duration **{DURATION} seconds** .
+    - Duration **{SHORT_DURATION} seconds** .
 
     3. Return the TOP-{K_VALUE} clips ranked by overall quality.
 
@@ -96,7 +97,7 @@ VLM_SYS_PROMPT = f"""
     - Do not return fewer than {K_VALUE} clips unless no valid clips exist
     - Do not include vague summaries
     - Do not give identical scores to all clips
-    - Do not exceed {DURATION} seconds per clip
+    - Do not exceed {SHORT_DURATION} seconds per clip
 """
 
 LLM_SYS_PROMPT = f"""
@@ -198,7 +199,7 @@ LLM_SYS_PROMPT = f"""
     - Do not produce vague reasons
 """
 
-def get_segments(input_path: str, output_dir: str, segment_length: int = 600):
+def get_segments(input_path: str, output_dir: str, segment_length: int = SEGMENT_DURATION):
     """ 
         This function divides an input long video into 10 min segments,
         saved then temporary into a diractory.
@@ -239,32 +240,40 @@ def parse_timestamp(timestamp: str) -> int:
 
     return minutes * 60 + seconds
 
-def clip_segment(segment_path: str, start_timestamp: str, end_timestamp: str, output_path: str) -> None:
+def clip_shorts(output_path : str, shorts_dir: str, video_path: str)->None:
     """
-    Clip a segment file between two timestamp strings and save it to the given output file path.
+    Clip and save the selected N shorts.
 
     Args:
-        segment_path (str): Path to the input segment video file.
-        start_timestamp (str): Start time as a string like "MM:SS".
-        end_timestamp (str): End time as a string like "MM:SS".
-        output_path (str): Full file path where the clipped video is saved.
+        output (str): json file system path of the final selected shorts
+        shorts_dir (str): Where to save the shorts
+        video_path (str): hight quality original video
     """
-    
-    start_seconds = parse_timestamp(start_timestamp)
-    end_seconds = parse_timestamp(end_timestamp)
+    with open(output_path, "r") as f:
+        output = json.load(f)
 
-    if end_seconds <= start_seconds:
-        raise ValueError("end_timestamp must be greater than start_timestamp")
+    for item in output:
+        start_seconds = parse_timestamp(item["start"])
+        end_seconds = parse_timestamp(item["end"])
+        
+        # We have to map these timestamps to values in the original video 
+        # stimestamp = 02:23 in segment 1 <=> timestamp = 12:23 in original video, means + segment_rank*SEGMENT_DURATION
+        
+        match= re.search(r"segments\\(\d+)\.mp4$", item["segment_path"])
+        segment_rank= int(match.group(1)) #type:ignore
+        start_seconds+= segment_rank*SEGMENT_DURATION
+        end_seconds+= segment_rank*SEGMENT_DURATION
 
-    output_file = Path(output_path)
-    output_file.parent.mkdir(parents=True, exist_ok=True)
+        if end_seconds <= start_seconds:
+            raise ValueError("end_timestamp must be greater than start_timestamp")
+        
+        with VideoFileClip(video_path) as video:
+            clip = video.subclipped(start_seconds, end_seconds)
+            clip_path = f"{shorts_dir}/{item['clip_id']}.mp4"
+            clip.write_videofile(clip_path)
+            print(f"{clip_path} saved")
 
-    with VideoFileClip(segment_path) as video:
-        clip = video.subclipped(start_seconds, end_seconds)
-        clip.write_videofile(str(output_file))
-
-    print(f"Saved clipped video to {output_file}")
-
+     
 def parse_response(response_text: str) -> list[dict]:
     try:
         return json.loads(response_text)
@@ -415,5 +424,29 @@ def clean_directory(directory_path: str) -> None:
 
     print(f"Deleted {deleted_files} files from {directory_path}")
 
+def merge_results(llm_output_path : str, vlm_output_path: str):
+    """Merge ranking results with vlm data and overwrite the final result file.
+    Args:
+        llm_output_path (str): Path to the JSON file containing ranked clip results.
+        vlm_output_path (str): Path to the JSON file containing VLM clip metadata.
+    """
 
+    with open(llm_output_path, "r") as f:
+        llm_output = json.load(f)    
 
+    with open(vlm_output_path, "r") as f:
+        vlm_output = json.load(f)  
+    
+    results = []
+    selected_keys = {"start", "end", "features", "video_path", "segment_path"}
+
+    for a in llm_output:    
+        for b in vlm_output:
+            if a["clip_id"] == b["clip_id"]:
+                break
+        a.update({k: v for k, v in b.items() if k in selected_keys}) #type:ignore
+        results.append(a)
+
+    with open(llm_output_path, "w") as f:
+        json.dump(results, f, indent= 2)
+        print(f"{llm_output_path} saved")

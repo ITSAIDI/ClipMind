@@ -76,7 +76,8 @@ flowchart TD
     style A fill:#FEC671
     style F fill:#81C2E0
 ```
-
+- I used the lowest quality for the VLM input segments *(divisions of original video)* to minimize the context length, which is about **55k** tokens including all input *(sys prompt, prompt)*. The problem is we should not clip the final shorts from these segments because quality is low for Youtube or other platforms. We have to use a highest quality video.
+- I mapped the extracted timestamps to values in the original video using the segment_rank and duration.
 
 ### Second approach 
 - Speech extraction
