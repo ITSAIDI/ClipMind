@@ -1,4 +1,3 @@
-from moviepy import VideoFileClip
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
@@ -7,7 +6,7 @@ import time
 import json
 import uuid
 from pathlib import Path
-import re
+import subprocess
 
 load_dotenv()
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY")) # Client object created once, when the module utils.py is loaded.
@@ -15,7 +14,9 @@ K_VALUE = 2
 N_VALUE = 3
 SEGMENT_DURATION = 600 # seconds
 SHORT_DURATION = 30 # seconds
+VLM_MEDIA_RESOLUTION = types.MediaResolution.MEDIA_RESOLUTION_LOW
 MODEL_NAME = "gemini-3-flash-preview" 
+
 VLM_SYS_PROMPT = f"""
     You are an expert video content analyst specialized in identifying highly engaging short-form clips from long videos.
 
@@ -200,27 +201,32 @@ LLM_SYS_PROMPT = f"""
 """
 
 def get_segments(input_path: str, output_dir: str, segment_length: int = SEGMENT_DURATION):
-    """ 
-        This function divides an input long video into 10 min segments,
-        saved then temporary into a diractory.
-
-        Args:
-            input_path (str): long video file sytem path
-            output_dir (str):  diractory for the segments
-            segment_length (int) : segment duration in seconds
     """
-    
-    with VideoFileClip(input_path) as video:
-        duration = video.end # Duration in seconds
-        num_segments = int(duration//segment_length)
+    This function divides an input long video into segments
+    and saves them temporarily into a directory.
 
-        for i in range(num_segments):
-            segment = video.subclipped(i*segment_length, (i+1)*segment_length)
-            segment_path = os.path.join(output_dir,f"{i}.mp4")
-            segment.write_videofile(segment_path)
+    Args:
+        input_path (str): long video file system path
+        output_dir (str): directory for the segments to be saved
+        segment_length (int): segment duration in seconds
+    """
 
-        remained_segment = video.subclipped(num_segments*segment_length, duration)
-        remained_segment.write_videofile(os.path.join(output_dir,f"{i+1}.mp4")) # type: ignore
+    os.makedirs(output_dir, exist_ok=True)
+
+    output_pattern = os.path.join(output_dir, "%d.mp4")
+
+    command = [
+        "ffmpeg",
+        "-i", input_path,
+        "-c", "copy",
+        "-map", "0",
+        "-f", "segment",
+        "-segment_time", str(segment_length),
+        "-reset_timestamps", "1",
+        output_pattern
+    ]
+
+    subprocess.run(command, check=True)
 
 def parse_timestamp(timestamp: str) -> int:
 
@@ -240,39 +246,49 @@ def parse_timestamp(timestamp: str) -> int:
 
     return minutes * 60 + seconds
 
-def clip_shorts(output_path : str, shorts_dir: str, video_path: str)->None:
+def clip_shorts(output_path: str, shorts_dir: str) -> None:
     """
     Clip and save the selected N shorts.
 
     Args:
-        output (str): json file system path of the final selected shorts
+        output_path (str): json file system path of the final selected shorts
         shorts_dir (str): Where to save the shorts
-        video_path (str): hight quality original video
     """
+
+    # We have to map these timestamps to values in the original video 
+    # stimestamp = 02:23 in segment 1 <=> timestamp = 12:23 in original video, means + segment_rank*SEGMENT_DURATION
+        
+    # match= re.search(r"segments\\(\d+)\.mp4$", item["segment_path"])
+    # segment_rank= int(match.group(1)) #type:ignore
+    # start_seconds+= segment_rank*SEGMENT_DURATION
+    # end_seconds+= segment_rank*SEGMENT_DURATION
+
+    os.makedirs(shorts_dir, exist_ok=True)
+
     with open(output_path, "r") as f:
         output = json.load(f)
 
     for item in output:
         start_seconds = parse_timestamp(item["start"])
         end_seconds = parse_timestamp(item["end"])
-        
-        # We have to map these timestamps to values in the original video 
-        # stimestamp = 02:23 in segment 1 <=> timestamp = 12:23 in original video, means + segment_rank*SEGMENT_DURATION
-        
-        match= re.search(r"segments\\(\d+)\.mp4$", item["segment_path"])
-        segment_rank= int(match.group(1)) #type:ignore
-        start_seconds+= segment_rank*SEGMENT_DURATION
-        end_seconds+= segment_rank*SEGMENT_DURATION
 
         if end_seconds <= start_seconds:
             raise ValueError("end_timestamp must be greater than start_timestamp")
-        
-        with VideoFileClip(video_path) as video:
-            clip = video.subclipped(start_seconds, end_seconds)
-            clip_path = f"{shorts_dir}/{item['clip_id']}.mp4"
-            clip.write_videofile(clip_path)
-            print(f"{clip_path} saved")
 
+        duration = end_seconds - start_seconds
+        clip_path = os.path.join(shorts_dir, f"{item['clip_id']}.mp4")
+
+        command = [
+            "ffmpeg",
+            "-ss", str(start_seconds),
+            "-i", item["segment_path"],
+            "-t", str(duration),
+            "-c", "copy",
+            clip_path
+        ]
+
+        subprocess.run(command, check=True)
+        print(f"{clip_path} saved")
      
 def parse_response(response_text: str) -> list[dict]:
     try:
@@ -321,6 +337,8 @@ def vlm_top_clips(segment_path: str) -> str:
             ]  
     """
 
+    start = time.time()
+
     video_file = client.files.upload(file= segment_path)
 
     while video_file.state.name == "PROCESSING": # type: ignore
@@ -333,9 +351,13 @@ def vlm_top_clips(segment_path: str) -> str:
 
     response = client.models.generate_content(
         model= MODEL_NAME,
-        config=types.GenerateContentConfig(system_instruction= VLM_SYS_PROMPT),
+        config=types.GenerateContentConfig(system_instruction= VLM_SYS_PROMPT, media_resolution= VLM_MEDIA_RESOLUTION),
         contents=[video_file],
     )
+
+    end = time.time()
+    print(f"\n {segment_path} proceeded in {(end - start):.2f} seconds")
+    # print(response)
     return response.text # type: ignore
 
 def llm_ranking(candidates_path: str, output_path: str):
