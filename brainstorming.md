@@ -98,3 +98,33 @@ I mapped the extracted timestamps to values in the original video using the segm
 - The most accurate model regards to the leaderboard is [Cohere-transcribe](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026), which has the lowest average WER *(Word error rate)*, and a good inference-speed (RTFx).
 - This model on a CPU with an audion of **15s** it took **90s** to return the transcription. But with T4 it takes only **2s**, a 10 min audio took **25s**, regards accuracy the model done very well.
 
+## Auto Editing
+
+- Selected edits for now :
+  - Reframing (9:16 vertical crop)
+  - Background music, that should be adjusted with the short speech.
+  - Highlights on keywords (different colors and fonts)
+
+### Reframing 
+- Reframing the short from horizontal aspect to vertical one (9:16) demand smart cropping of the original video to focus dynamically on the main object (speaker, animal, dragon...), this could be done with :
+
+   - ❌ Online API or website like [freecropper](https://freecropper.com/), [choppity](https://www.choppity.com/features/automated-framing/)..., but free plan is very restricted 
+   - ❌ Desktop apps like *CapCut* but also requires subscription and manual work.
+   - ❌ python libraries like [pyautoFlip](https://github.com/AhmedHisham1/pyautoflip) (based on object recognition, face detection, speaker tracking) but the resulting cropping is not actually accurate. 
+
+**💡 Alternative solution** 
+
+The system uses Gemini to generate a sequence of horizontal crop positions (x-coordinates) that define where the **cropping window** should focus in each second of the video. Each x-value represents the **top-left** horizontal position of a 9:16 cropping window applied over the original video.
+
+<img src="images/01.png">
+
+However, applying these values directly would cause visible **jumps** every second, since the crop position changes from one keyframe to the next.
+
+To solve this, we apply **temporal interpolation** between consecutive x-values. Instead of switching positions discretely, we compute intermediate positions over time using a smooth function (typically linear interpolation). This transforms the list of discrete coordinates into a continuous motion path, making the crop window move fluidly across the video.
+
+```text
+x(t) = x[i] + (x[i+1] - x[i]) * (t - i)
+i : 0,1,...,30
+```
+
+

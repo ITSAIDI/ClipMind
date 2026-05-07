@@ -7,12 +7,13 @@ import json
 import uuid
 from pathlib import Path
 import subprocess
+import tempfile
 
 load_dotenv()
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY")) # Client object created once, when the module utils.py is loaded.
 K_VALUE = 2
 N_VALUE = 3
-SEGMENT_DURATION = 600 # seconds
+SEGMENT_DURATION = 600 # seconds (10 min)
 SHORT_DURATION = 30 # seconds
 VLM_MEDIA_RESOLUTION = types.MediaResolution.MEDIA_RESOLUTION_LOW
 MODEL_NAME = "gemini-3-flash-preview" 
@@ -200,6 +201,7 @@ LLM_SYS_PROMPT = f"""
     - Do not produce vague reasons
 """
 
+
 def get_segments(input_path: str, output_dir: str, segment_length: int = SEGMENT_DURATION):
     """
     This function divides an input long video into segments
@@ -351,7 +353,7 @@ def vlm_top_clips(segment_path: str) -> str:
 
     response = client.models.generate_content(
         model= MODEL_NAME,
-        config=types.GenerateContentConfig(system_instruction= VLM_SYS_PROMPT, media_resolution= VLM_MEDIA_RESOLUTION),
+        config=types.GenerateContentConfig(system_instruction= VLM_SYS_PROMPT, media_resolution= VLM_MEDIA_RESOLUTION), #type:ignore
         contents=[video_file],
     )
 
@@ -472,3 +474,177 @@ def merge_results(llm_output_path : str, vlm_output_path: str):
     with open(llm_output_path, "w") as f:
         json.dump(results, f, indent= 2)
         print(f"{llm_output_path} saved")
+
+def get_video_resolution(video_path):
+    """Return the width and height of a video file.
+
+    Args:
+        video_path (str): Path to the input video file.
+
+    Returns:
+        tuple[int, int]: The video width and height in pixels.
+
+    Raises:
+        ValueError: If the ffprobe output cannot be parsed or the expected
+            stream data is missing.
+    """
+
+    command = [
+        "ffprobe",
+        "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=width,height",
+        "-of", "json",
+        video_path
+    ]
+
+    result = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    data = json.loads(result.stdout)
+
+    width = data["streams"][0]["width"]
+    height = data["streams"][0]["height"]
+
+    return width, height
+
+def smart_cropping(input_file : str, save_path : str, x_list : list, 
+                   new_width: int, new_height: int, fps : int ) -> None:
+    """Create a vertically cropped video using a second-by-second crop path.
+
+    This function generates a temporary segment for each second of the input video,
+    applies a horizontal crop that transitions smoothly between consecutive x
+    coordinates, and then concatenates the segments into a single output file.
+
+    Args:
+        input_file (str): Path to the source video file.
+        save_path (str): Path where the final cropped output video will be saved.
+        x_list (list): List of per-second x coordinates for the crop window.
+        new_width (int): Width of the output crop window.
+        new_height (int): Height of the output crop window.
+        fps (int, optional): Frame rate to apply to each cropped segment. Defaults to 29.
+
+    Returns:
+        None
+    """
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        segments = []
+
+        for i in range(len(x_list) - 1):
+            x0 = x_list[i]
+            x1 = x_list[i + 1]
+
+            seg_path = os.path.join(tmpdir, f"seg_{i:03d}.mp4")
+            segments.append(seg_path)
+
+            # build smooth expression for this second
+            x_interpolated = f"{x0}+({x1}-{x0})*(t-{i})"
+            subprocess.run([
+                "ffmpeg",
+                "-y",
+                "-hide_banner",
+                "-loglevel", "error",
+                "-i", input_file,
+                "-ss", str(i),
+                "-t", "1",
+                "-vf", f"crop={new_width}:{new_height}:{x_interpolated}:0,fps={fps}",
+                seg_path
+            ])
+
+        list_file = os.path.join(tmpdir, "list.txt")
+
+        with open(list_file, "w") as f:
+            for seg in segments:
+                f.write(f"file '{seg}'\n")
+        # concatination 
+        subprocess.run([
+            "ffmpeg",
+            "-y",
+            "-hide_banner",
+            "-loglevel", "error",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", list_file,
+            "-c:v", "libx264",
+            "-crf", "18",
+            "-preset", "fast",
+            "-c:a", "aac",
+            save_path
+        ])    
+
+def reframe_short(short_path : str, output_path: str, ratio : float = 9/16, fps : int = 25 ) -> None:
+    start = time.time()
+
+    width, height = get_video_resolution(short_path)
+
+    REFRAMING_SYS_PROMPT = f"""
+        You are a video reframing assistant.
+
+        You will receive a horizontal video and must generate a dynamic crop path to convert it into a vertical video suitable for YouTube Shorts or TikTok.
+
+        ### PARAMETERS:
+        - original_width = {width}
+        - original_height = {height}
+        - target_width = {int(height*ratio)}
+        - target_height = {height}
+        - duration_seconds = {SHORT_DURATION}
+
+        ### TASK:
+        Generate a smooth x-axis tracking path for a cropping window.
+
+        You must output a list of exactly duration_seconds values (one per second), representing:
+
+        x = top-left x-coordinate of a vertical crop window of size (target_width × target_height)
+
+        ### CONSTRAINTS:
+        - Each x must satisfy:
+        0 ≤ x ≤ (original_width - target_width)
+
+        ### OBJECTIVE:
+        Track the main subject (speaker or most visually important object) across the video.
+
+        Rules:
+        - Keep subject centered in the crop whenever possible
+        - Follow horizontal movement smoothly
+        - Avoid sudden jumps in x values
+        - If scene is static, keep x stable or minimally drifting
+        - If multiple subjects exist, prioritize speaker or dominant visual focus
+
+        ### OUTPUT FORMAT:
+        Return ONLY a JSON array of integers of length duration_seconds:
+
+        [x1, x2, x3, ...]
+
+        No explanations, no extra text, no formatting outside the array.
+        """
+
+    print("\n VLM searching for best cropping path...")
+    video_file = client.files.upload(file= short_path)
+    
+    while video_file.state.name == "PROCESSING": # type: ignore
+        print('.', end='', flush=True)
+        time.sleep(5)
+        video_file = client.files.get(name=video_file.name) # type: ignore
+
+    if video_file.state.name == "FAILED": # type: ignore
+        raise ValueError(video_file.state.name) # type: ignore
+    
+    response = client.models.generate_content(
+        model= MODEL_NAME,
+        config=types.GenerateContentConfig(system_instruction= REFRAMING_SYS_PROMPT, media_resolution= VLM_MEDIA_RESOLUTION), #type:ignore
+        contents=[video_file],
+    )
+    x_coordinates = json.loads(response.text) #type:ignore
+
+    print("\n Cropping...")
+    smart_cropping(input_file= short_path, save_path= output_path, x_list= x_coordinates, 
+                   new_height= height, new_width= int(height*(9/16)), fps= fps)
+    
+    end = time.time()
+    print(f"\n {output_path} saved, reframing time (s) : {(end-start):.2f}")
+    
