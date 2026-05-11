@@ -1,12 +1,14 @@
 [project]
 name = "ClipMind"
 version = "0.1.0"
-description = "The streamlit app"
+description = "ClipMind app"
 readme = "README.md"
-requires-python = "==3.10.16"
+requires-python = "==3.11.10"
 # This project uses the system ffmpeg tool for video cliping.
 # Ensure ffmpeg is installed and available on PATH.
 dependencies = [
+    "google-api-python-client>=2.196.0",
+    "google-auth-oauthlib>=1.4.0",
     "google-genai>=1.73.1",
     "python-dotenv>=1.2.2",
 ]
