@@ -8,12 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
-.env
-token.pickle
-client_secret.json
-.vscode
+secrets
+data
 uv.lock
-videos
-segments
-shorts
-jsons
