@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart TD
-    A(Ingestion) --> B(Content Understanding) --> C(Clipping) --> D(Editing) --> E(Metadata Generation) --> F(Publishing)
+    A(Ingestion) --> B(Extracting) --> D(Editing) --> F(Publishing)
 
     linkStyle default stroke:#ffff,stroke-width:2px
 
@@ -16,7 +16,7 @@ flowchart TD
  
 The input is a video file in mp4 format *(youtube video, TV show episode...)*
 
-## Content understanding 
+## Extracting
 
 ### First approach 
 - Using a VLM that understand visual content and decide the epic moment(s) of the video. The most generous provider until now is Google Refer to [her](https://aistudio.google.com/rate-limit?timeRange=last-1-day&project=ai-shorts-tool-493100) for rate limits details.
@@ -98,12 +98,16 @@ I mapped the extracted timestamps to values in the original video using the segm
 - The most accurate model regards to the leaderboard is [Cohere-transcribe](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026), which has the lowest average WER *(Word error rate)*, and a good inference-speed (RTFx).
 - This model on a CPU with an audion of **15s** it took **90s** to return the transcription. But with T4 it takes only **2s**, a 10 min audio took **25s**, regards accuracy the model done very well.
 
-## Auto Editing
+## Editing
 
 - Selected edits for now :
   - Reframing (9:16 vertical crop)
-  - Background music, that should be adjusted with the short speech.
+  - Background music.
   - Highlights on keywords (different colors and fonts)
+  - Some video effects 
+   - Contrast, Brightness 
+   <!-- - Shake Effect
+   - Speed Ramping -->
 
 ### Reframing 
 - Reframing the short from horizontal aspect to vertical one (9:16) demand smart cropping of the original video to focus dynamically on the main object (speaker, animal, dragon...), this could be done with :
@@ -127,4 +131,7 @@ x(t) = x[i] + (x[i+1] - x[i]) * (t - i)
 i : 0,1,...,30
 ```
 
+### Reframing 
 
+- VLM generates a .ass (Advanced SubStation Alpha) script for styled and animated captions.
+- We use the generated script with ffmpeg tool to apply the captions.

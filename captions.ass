@@ -1,0 +1,26 @@
+[Script Info]
+Title: Cinematic Viral Edit - Game of Thrones
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Impact,110,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,2,0,1,6,0,5,10,10,100,1
+Style: Roar,Impact,130,&H0000E6FF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,5,0,1,8,0,5,10,10,100,1
+Style: Scream,Impact,140,&H000000FF,&H000000FF,&H00FFFFFF,&H00000000,-1,0,0,0,100,100,2,0,1,6,0,5,10,10,100,1
+Style: Action,Montserrat,90,&H0000FFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,2,0,1,4,0,5,10,10,100,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,00:00:00.00,00:00:01.20,Roar,,0,0,0,,{\pos(540,800)\t(0,200,\fscx120\fscy120)\t(200,400,\fscx100\fscy100)}*BEAR GROWLS*
+Dialogue: 0,00:00:01.30,00:00:02.50,Action,,0,0,0,,{\pos(540,1100)\move(540,1100,540,1050)\fad(100,100)}[SWORDS CLASHING]
+Dialogue: 0,00:00:03.00,00:00:04.50,Scream,,0,0,0,,{\pos(540,1400)\fscx110\fscy110\t(0,100,\frz5)\t(100,200,\frz-5)\t(200,300,\frz5)\t(300,400,\frz0)}AAAGGHH!
+Dialogue: 0,00:00:05.50,00:00:07.50,Roar,,0,0,0,,{\c&H00FCFF&\pos(540,960)\blur10\t(0,500,\blur2\fscx130\fscy130)}*DEAFENING ROAR*
+Dialogue: 0,00:00:08.50,00:00:10.50,Action,,0,0,0,,{\c&H0000A5FF&\pos(540,1500)\fscx120\fscy120}FLAMES IGNITE
+Dialogue: 0,00:00:13.50,00:00:15.50,Scream,,0,0,0,,{\pos(540,1600)\fscx130\fscy130\t(0,100,\fscx150\fscy150)\t(100,200,\fscx130\fscy130)}HE'S GOT ME!
+Dialogue: 0,00:00:16.00,00:00:18.00,Default,,0,0,0,,{\pos(540,1400)\c&H000000FF&\bord8\3c&H00FFFFFF&}TORMUND!
+Dialogue: 0,00:00:19.50,00:00:22.00,Scream,,0,0,0,,{\pos(540,960)\fad(0,200)\fscx150\fscy150\t(0,2500,\frz20)}NOOOO!
+Dialogue: 0,00:00:22.50,00:00:25.00,Action,,0,0,0,,{\c&H000045FF&\pos(540,1100)\fscx140\fscy140\t(0,500,\fscx160\fscy160)}ENGULFED IN FIRE
+Dialogue: 0,00:00:26.50,00:00:28.50,Roar,,0,0,0,,{\pos(540,800)\fscx140\fscy140\blur5\t(0,200,\fscx160\fscy160)\t(200,400,\fscx140\fscy140)}*FINAL SCREECH*

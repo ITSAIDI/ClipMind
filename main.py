@@ -10,7 +10,10 @@
 # clean_directory(directory_path= "segments")
 # clean_directory(directory_path= "shorts")
 
-from utils import reframe_short
+from editing import reframing, captioning, enhancing, audio_mixing
 
 
-reframe_short(short_path= "shorts/e5122608.mp4", output_path= "shorts/done.mp4")
+reframing(short_path= "shorts/e5122608.mp4", output_path= "shorts/done.mp4")
+enhancing(short_path= "shorts/done.mp4", output_path= "shorts/done01.mp4")
+captioning(short_path= "shorts/done01.mp4", output_path= "shorts/done02.mp4")
+audio_mixing(short_path= "shorts/done02.mp4", output_path= "shorts/done03.mp4")
