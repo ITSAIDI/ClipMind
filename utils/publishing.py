@@ -5,15 +5,14 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from typing import TypedDict
+from config import SCOPES, PICKLE_FILE, CLIENT_SECRET_FILE
+
 
 class metadataType(TypedDict):
     title: str
     description : str
     tags: list[str]
     categoryId: str
-
-
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
 
 
 def publishing(short_path: str, metadata: metadataType)->None:
@@ -43,8 +42,8 @@ def publishing(short_path: str, metadata: metadataType)->None:
 
     credentials = None
 
-    if os.path.exists("token.pickle"):
-        with open("token.pickle", "rb") as token:
+    if os.path.exists(PICKLE_FILE):
+        with open(PICKLE_FILE, "rb") as token:
             credentials = pickle.load(token)
 
     if not credentials or not credentials.valid:
@@ -52,12 +51,12 @@ def publishing(short_path: str, metadata: metadataType)->None:
             credentials.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                "client_secret.json",
+                CLIENT_SECRET_FILE,
                 SCOPES
             )
             credentials = flow.run_local_server(port=8080)
 
-        with open("token.pickle", "wb") as token:
+        with open(PICKLE_FILE, "wb") as token:
             pickle.dump(credentials, token)
 
     youtube = build("youtube", "v3", credentials=credentials)
