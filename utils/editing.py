@@ -7,7 +7,8 @@ import json
 import subprocess
 import tempfile
 import random 
-from config import *
+from utils.config import *
+import streamlit as st
 
 load_dotenv(dotenv_path= DOT_ENV_FILE)
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
@@ -233,7 +234,7 @@ def reframing(short_path : str, output_path: str, ratio : float = 9/16, fps : in
     end = time.time()
     print(f"\n {output_path} saved, reframing time (s) : {(end-start):.2f}")
     
-def captioning(short_path : str, output_path: str, ass_path: str = "captions.ass") -> None:
+def captioning(short_path : str, output_path: str, ass_path: str = "data/captions.ass") -> None:
     """Generate captions for a video and burn them into the output file.
 
     This function uploads the source video to the VLM, requests a styled ASS
@@ -281,7 +282,7 @@ def captioning(short_path : str, output_path: str, ass_path: str = "captions.ass
     end = time.time()
     print(f"\n {output_path} saved, captioning time (s) : {(end-start):.2f}")
 
-def audio_mixing(short_path : str, output_path : str, music_dir: str = "music")-> None:
+def audio_mixing(short_path : str, output_path : str, music_dir: str = "data/music")-> None:
 
     start = time.time()
 
@@ -312,6 +313,25 @@ def audio_mixing(short_path : str, output_path : str, music_dir: str = "music")-
 
     end = time.time()
     print(f"\n {output_path} saved, audio_mixing time (s) : {(end-start):.2f}")
+  
+def run_step(func, short_path, temp_path, **kwargs):
+    with st.spinner(f"{func.__name__}..."):
+        func(short_path=short_path, output_path=temp_path, **kwargs)
+        os.replace(temp_path, short_path)
 
-    
+def apply_edits(short_path: str, do_reframing :bool, do_captioning :bool, do_audio :bool, do_enhancing :bool):
 
+    st.write(f"Applying edits to **{short_path}**")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+
+        temp_path = os.path.join(tmpdir, "temp.mp4")
+
+        if do_reframing: run_step(reframing, short_path, temp_path)
+        if do_captioning: run_step(captioning, short_path, temp_path)
+        if do_audio: run_step(audio_mixing, short_path, temp_path)
+        if do_enhancing: run_step(enhancing, short_path, temp_path)
+
+# def apply_shorts(shorts_dir : str):
+#     for short_name in os.listdir(shorts_dir):
+#         apply_all_edits(os.path.join(shorts_dir, short_name))

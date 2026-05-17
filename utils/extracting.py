@@ -7,12 +7,14 @@ import json
 import uuid
 from pathlib import Path
 import subprocess
-from config import *
+from utils.config import *
+import streamlit as st
+
 
 load_dotenv(dotenv_path= DOT_ENV_FILE)
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY")) # Client object created once, when the module utils.py is loaded.
 
-def get_segments(input_path: str, output_dir: str, segment_length: int = SEGMENT_DURATION):
+def segmenting(input_path: str, output_dir: str, segment_length: int = SEGMENT_DURATION):
     """
     This function divides an input long video into segments
     and saves them temporarily into a directory.
@@ -29,6 +31,8 @@ def get_segments(input_path: str, output_dir: str, segment_length: int = SEGMENT
 
     command = [
         "ffmpeg",
+        "-hide_banner",
+        "-loglevel", "error",
         "-i", input_path,
         "-c", "copy",
         "-map", "0",
@@ -37,8 +41,8 @@ def get_segments(input_path: str, output_dir: str, segment_length: int = SEGMENT
         "-reset_timestamps", "1",
         output_pattern
     ]
-
-    subprocess.run(command, check=True)
+    with st.spinner("ffmpeg is segmenting..."):
+        subprocess.run(command, check=True)
 
 def parse_timestamp(timestamp: str) -> int:
 
@@ -58,7 +62,7 @@ def parse_timestamp(timestamp: str) -> int:
 
     return minutes * 60 + seconds
 
-def clip_shorts(output_path: str, shorts_dir: str) -> None:
+def trimming(output_path: str, shorts_dir: str) -> None:
     """
     Clip and save the selected N shorts.
 
@@ -66,42 +70,36 @@ def clip_shorts(output_path: str, shorts_dir: str) -> None:
         output_path (str): json file system path of the final selected shorts
         shorts_dir (str): Where to save the shorts
     """
-
-    # We have to map these timestamps to values in the original video 
-    # stimestamp = 02:23 in segment 1 <=> timestamp = 12:23 in original video, means + segment_rank*SEGMENT_DURATION
-        
-    # match= re.search(r"segments\\(\d+)\.mp4$", item["segment_path"])
-    # segment_rank= int(match.group(1)) #type:ignore
-    # start_seconds+= segment_rank*SEGMENT_DURATION
-    # end_seconds+= segment_rank*SEGMENT_DURATION
-
     os.makedirs(shorts_dir, exist_ok=True)
 
     with open(output_path, "r") as f:
         output = json.load(f)
 
-    for item in output:
-        start_seconds = parse_timestamp(item["start"])
-        end_seconds = parse_timestamp(item["end"])
+    with st.spinner("ffmpeg is trimming..."):
+        for item in output:
+            start_seconds = parse_timestamp(item["start"])
+            end_seconds = parse_timestamp(item["end"])
 
-        if end_seconds <= start_seconds:
-            raise ValueError("end_timestamp must be greater than start_timestamp")
+            if end_seconds <= start_seconds:
+                raise ValueError("end_timestamp must be greater than start_timestamp")
 
-        duration = end_seconds - start_seconds
-        clip_path = os.path.join(shorts_dir, f"{item['clip_id']}.mp4")
+            duration = end_seconds - start_seconds
+            clip_path = os.path.join(shorts_dir, f"{item['clip_id']}.mp4")
 
-        command = [
-            "ffmpeg",
-            "-ss", str(start_seconds),
-            "-i", item["segment_path"],
-            "-t", str(duration),
-            "-c", "copy",
-            clip_path
-        ]
+            command = [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel", "error",
+                "-ss", str(start_seconds),
+                "-i", item["segment_path"],
+                "-t", str(duration),
+                "-c", "copy",
+                clip_path
+            ]
 
-        subprocess.run(command, check=True)
-        print(f"{clip_path} saved")
-     
+            subprocess.run(command, check=True)
+            print(f"{clip_path} saved")
+        
 def parse_response(response_text: str) -> list[dict]:
     try:
         return json.loads(response_text)
@@ -148,9 +146,8 @@ def vlm_top_clips(segment_path: str) -> str:
                 },
             ]  
     """
-
+    
     start = time.time()
-
     video_file = client.files.upload(file= segment_path)
 
     while video_file.state.name == "PROCESSING": # type: ignore
@@ -160,7 +157,7 @@ def vlm_top_clips(segment_path: str) -> str:
 
     if video_file.state.name == "FAILED": # type: ignore
         raise ValueError(video_file.state.name) # type: ignore
-
+    
     response = client.models.generate_content(
         model= MODEL_NAME,
         config=types.GenerateContentConfig(system_instruction= VLM_SYS_PROMPT, media_resolution= VLM_MEDIA_RESOLUTION), #type:ignore
@@ -169,10 +166,9 @@ def vlm_top_clips(segment_path: str) -> str:
 
     end = time.time()
     print(f"\n {segment_path} proceeded in {(end - start):.2f} seconds")
-    # print(response)
     return response.text # type: ignore
 
-def llm_ranking(candidates_path: str, output_path: str):
+def ranking(candidates_path: str, output_path: str):
     """
         An LLM model ranks all candidates (clips) and determines the top-n shorts. The result then saved localy.
 
@@ -191,45 +187,70 @@ def llm_ranking(candidates_path: str, output_path: str):
                 }
             ]
     """
-
+    
     json_part = types.Part.from_bytes(
     data= open(candidates_path, "rb").read(),
     mime_type= "application/json")
 
-    print("\n LLM is ranking...")
-    response = client.models.generate_content(
-        model= MODEL_NAME,
-        config=types.GenerateContentConfig(system_instruction= LLM_SYS_PROMPT),
-        contents=[json_part],
-    )
+    with st.spinner("LLM is ranking..."):
+        response = client.models.generate_content(
+            model= MODEL_NAME,
+            config=types.GenerateContentConfig(system_instruction= LLM_SYS_PROMPT),
+            contents=[json_part],
+        )
     if response.text:
         parsed_data = parse_response(response.text)
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(parsed_data, f, indent=2)
-            print(f"\n {output_path} saved")
+            st.write(f"\n {output_path} saved")
+            
+        adding_keys(llm_output_path= output_path, vlm_output_path= candidates_path)
     else :
-        print("No response from LLM")
+        st.error("No response from LLM")
 
-def get_all_candidates(segments_dir: str, video_path: str, output_path: str):
+def extracting(segments_dir: str, video_path: str, output_path: str):
+    """
+    This function iterates through all video segments in a directory, sends each to a VLM model
+    for clip extraction, enriches the results with metadata, and saves all candidates to a JSON file.
+
+    Args:
+        segments_dir (str): Directory containing video segments files (.mp4).
+        video_path (str): File system path of the original long-form video.
+        output_path (str): File system path where the JSON file with all candidates will be saved.
+
+    Returns:
+        None. Saves the results to output_path as a JSON file containing a list of candidate clips
+        with VLM scores, features, metadata, and unique clip IDs.
+
+    Example:
+        >>> get_all_candidates("temp/segments", "video.mp4", "jsons/all_candidates.json")
+    """
     segments = os.listdir(segments_dir)
     all_candidates = []
+    progress_bar = st.progress(0)
+    status_text = st.empty()
 
-    for segment_name in segments:
+    for idx, segment_name in enumerate(segments):
         segment_path =  str(Path(segments_dir) / segment_name) 
-        print(f"\n VLM processing segment: {segment_name}")
         parsed_data = parse_response(vlm_top_clips(segment_path))
-        
+        # print(parsed_data)
         for item in parsed_data:
             item["video_path"] = video_path
             item["segment_path"] = segment_path
-            item["clip_id"] = str(uuid.uuid4().hex[:8])
+            item["clip_id"] = str(uuid.uuid4().hex[:4])
 
         all_candidates.extend(parsed_data)
-        print(f"\n Total number of candidates: {len(all_candidates)}")
- 
+
+        progress =  (idx + 1) / len(segments)
+        progress_bar.progress(progress)
+        status_text.text(f"Processing segment {segment_name} : {progress*100:.2f} %")
+
+    st.write(f"Total number of candidates: {len(all_candidates)}")
+
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(all_candidates, f, indent=2)
-        print(f"\n {output_path} saved")
+
+    st.write(f"{output_path} get saved")
 
 def clean_directory(directory_path: str) -> None:
     """
@@ -256,14 +277,15 @@ def clean_directory(directory_path: str) -> None:
             path.unlink()
             deleted_files += 1
 
-    print(f"Deleted {deleted_files} files from {directory_path}")
+    st.write(f"Deleted {deleted_files} files from {directory_path}")
 
-def merge_results(llm_output_path : str, vlm_output_path: str):
-    """Merge ranking results with vlm data and overwrite the final result file.
+def adding_keys(llm_output_path : str, vlm_output_path: str):
+    """Merge ranking results with some extracting data and overwrite the final result file.
     Args:
         llm_output_path (str): Path to the JSON file containing ranked clip results.
         vlm_output_path (str): Path to the JSON file containing VLM clip metadata.
     """
+    st.write(f"Updating {llm_output_path}")
 
     with open(llm_output_path, "r") as f:
         llm_output = json.load(f)    
@@ -283,4 +305,18 @@ def merge_results(llm_output_path : str, vlm_output_path: str):
 
     with open(llm_output_path, "w") as f:
         json.dump(results, f, indent= 2)
-        print(f"{llm_output_path} saved")
+        st.write(f"{llm_output_path} saved")
+
+# def display_shorts(shorts_dir :str):
+#     videos = list(Path(shorts_dir).glob("*.mp4"))
+#     videos_per_row = 3
+
+#     for i in range(0, len(videos), videos_per_row):
+#         cols = st.columns(videos_per_row)
+
+#         row_videos = videos[i:i + videos_per_row]
+
+#         for col, video in zip(cols, row_videos):
+#             with col:
+#                 st.video(str(video))
+#                 st.caption(video.name)

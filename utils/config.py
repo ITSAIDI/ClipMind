@@ -1,6 +1,6 @@
 from google.genai import types
 
-DOT_ENV_FILE = "../secrets/.env"
+DOT_ENV_FILE = "secrets/.env"
 
 # Extracting
 
@@ -424,5 +424,5 @@ The generated subtitles should feel like high-quality viral edit captions seen i
 # Publishing
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
-PICKLE_FILE = "../secrets/token.pickle"
-CLIENT_SECRET_FILE = "../secrets/client_secret.json"
+PICKLE_FILE = "secrets/token.pickle"
+CLIENT_SECRET_FILE = "secrets/client_secret.json"
