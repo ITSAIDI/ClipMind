@@ -33,8 +33,8 @@ flowchart LR
 
 
     linkStyle default stroke:#ffff,stroke-width:2px
-    style A fill:#FEC671
-    style F fill:#81C2E0
+    style A fill:#FF7F50
+    style F fill:#0096FF
 ```
 
 ## What it does
