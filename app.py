@@ -12,7 +12,6 @@ SHORTS_DIR = "data/shorts"
 CANDIDATES_FILE = "data/jsons/all_candidates.json"
 OUTPUT_FILE  = "data/jsons/output.json"
 
-
 st.set_page_config(layout="wide")
 st.title("ClipMind Tool")
 
@@ -35,21 +34,21 @@ if uploaded_file:
     st.header("1. Content understanding")
 
     st.subheader("1.1 Segmenting video")
-    # clean_directory(SEGMENTS_DIR)    
-    # segmenting(input_path = file_path, output_dir= SEGMENTS_DIR)
+    clean_directory(SEGMENTS_DIR)    
+    segmenting(input_path = file_path, output_dir= SEGMENTS_DIR)
     st.success("Segmenting complete")
     
     st.subheader("1.2 Extracting candidates")
-    # extracting(segments_dir= SEGMENTS_DIR, video_path= file_path, output_path= CANDIDATES_FILE)
+    extracting(segments_dir= SEGMENTS_DIR, video_path= file_path, output_path= CANDIDATES_FILE)
     st.success("Extracting complete")
 
     st.subheader("1.3 Ranking candidates")
-    # ranking(candidates_path= CANDIDATES_FILE, output_path= OUTPUT_FILE)
+    ranking(candidates_path= CANDIDATES_FILE, output_path= OUTPUT_FILE)
     st.success("Ranking complete")
 
     st.subheader("1.4 Trimming")
-    # clean_directory(SHORTS_DIR)
-    # trimming(output_path= OUTPUT_FILE, shorts_dir= SHORTS_DIR)
+    clean_directory(SHORTS_DIR)
+    trimming(output_path= OUTPUT_FILE, shorts_dir= SHORTS_DIR)
     st.success("Trimming complete")
 
     st.header("2. Editing")
