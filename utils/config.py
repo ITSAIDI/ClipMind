@@ -8,7 +8,7 @@ K_VALUE = 2
 N_VALUE = 3
 SEGMENT_DURATION = 600 # seconds (10 min)
 SHORT_DURATION = 30 # seconds
-MODEL_NAME = "gemini-3-flash-preview" 
+MODEL_NAME = "gemini-3.1-flash-lite" 
 VLM_MEDIA_RESOLUTION = types.MediaResolution.MEDIA_RESOLUTION_LOW
 
 VLM_SYS_PROMPT = f"""

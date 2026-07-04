@@ -158,6 +158,8 @@ def vlm_top_clips(segment_path: str) -> str:
     if video_file.state.name == "FAILED": # type: ignore
         raise ValueError(video_file.state.name) # type: ignore
     
+    print(f"{segment_path} uploaded")
+
     response = client.models.generate_content(
         model= MODEL_NAME,
         config=types.GenerateContentConfig(system_instruction= VLM_SYS_PROMPT, media_resolution= VLM_MEDIA_RESOLUTION), #type:ignore
@@ -263,6 +265,7 @@ def clean_directory(directory_path: str) -> None:
         FileNotFoundError: If the directory does not exist.
         NotADirectoryError: If the path is not a directory.
     """
+
     directory = Path(directory_path)
 
     if not directory.exists():
@@ -307,16 +310,3 @@ def adding_keys(llm_output_path : str, vlm_output_path: str):
         json.dump(results, f, indent= 2)
         st.write(f"{llm_output_path} saved")
 
-# def display_shorts(shorts_dir :str):
-#     videos = list(Path(shorts_dir).glob("*.mp4"))
-#     videos_per_row = 3
-
-#     for i in range(0, len(videos), videos_per_row):
-#         cols = st.columns(videos_per_row)
-
-#         row_videos = videos[i:i + videos_per_row]
-
-#         for col, video in zip(cols, row_videos):
-#             with col:
-#                 st.video(str(video))
-#                 st.caption(video.name)
