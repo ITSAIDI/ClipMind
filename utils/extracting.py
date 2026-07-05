@@ -203,7 +203,7 @@ def ranking(candidates_path: str, output_path: str):
     if response.text:
         parsed_data = parse_response(response.text)
         with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(parsed_data, f, indent=2)
+            json.dump(parsed_data, f, indent=2, ensure_ascii= False)
             st.write(f"\n {output_path} saved")
             
         adding_keys(llm_output_path= output_path, vlm_output_path= candidates_path)
@@ -250,7 +250,7 @@ def extracting(segments_dir: str, video_path: str, output_path: str):
     st.write(f"Total number of candidates: {len(all_candidates)}")
 
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(all_candidates, f, indent=2)
+        json.dump(all_candidates, f, indent=2, ensure_ascii= False)
 
     st.write(f"{output_path} get saved")
 
@@ -307,6 +307,6 @@ def adding_keys(llm_output_path : str, vlm_output_path: str):
         results.append(a)
 
     with open(llm_output_path, "w") as f:
-        json.dump(results, f, indent= 2)
+        json.dump(results, f, indent= 2, ensure_ascii= False)
         st.write(f"{llm_output_path} saved")
 
