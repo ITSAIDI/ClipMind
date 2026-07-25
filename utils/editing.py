@@ -1,6 +1,6 @@
 from google import genai
 from google.genai import types
-from dotenv import load_dotenv
+
 import os
 import time
 import json
@@ -10,8 +10,8 @@ import random
 from utils.config import *
 import streamlit as st
 
-load_dotenv(dotenv_path= DOT_ENV_FILE)
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 
 def get_video_resolution(video_path):
@@ -176,7 +176,7 @@ def enhancing(short_path : str, output_path : str)-> None:
     subprocess.run(cmd)
 
     end = time.time()
-    print(f"\n {output_path} saved, reframing time (s) : {(end-start):.2f}")
+    print(f"\n {output_path} saved, enhancing time (s) : {(end-start):.2f}")
 
 def reframing(short_path : str, output_path: str, ratio : float = 9/16, fps : int = 25 ) -> None:
     """Generate a horizontal crop path and apply vertical reframing to a video.

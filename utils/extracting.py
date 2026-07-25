@@ -1,6 +1,6 @@
 from google import genai
 from google.genai import types
-from dotenv import load_dotenv
+
 import os
 import time
 import json
@@ -11,8 +11,12 @@ from utils.config import *
 import streamlit as st
 
 
-load_dotenv(dotenv_path= DOT_ENV_FILE)
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY")) # Client object created once, when the module utils.py is loaded.
+client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"]) # Client object created once, when the module utils.py is loaded.
+
+
+def create_folder(folder_path: str) -> None:
+    os.makedirs(folder_path, exist_ok=True)
+
 
 def segmenting(input_path: str, output_dir: str, segment_length: int = SEGMENT_DURATION):
     """

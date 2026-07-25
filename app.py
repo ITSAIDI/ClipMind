@@ -1,6 +1,6 @@
 import streamlit as st
 import uuid 
-from utils.extracting import clean_directory, segmenting, extracting, ranking, trimming
+from utils.extracting import create_folder, clean_directory, segmenting, extracting, ranking, trimming
 from utils.editing import apply_edits
 from utils.publishing import *
 from pathlib import Path
@@ -9,13 +9,17 @@ from pathlib import Path
 UPLOAD_DIR = "data/videos"
 SEGMENTS_DIR = "data/segments"
 SHORTS_DIR = "data/shorts"
-CANDIDATES_FILE = "data/jsons/all_candidates.json"
-OUTPUT_FILE  = "data/jsons/output.json"
+JSONS_DIR = "data/jsons"
+CANDIDATES_FILE = JSONS_DIR + "/all_candidates.json"
+OUTPUT_FILE  = JSONS_DIR + "/output.json"
 
 st.set_page_config(layout="wide")
 st.title("ClipMind Tool")
 
-clean_directory(UPLOAD_DIR)
+create_folder(UPLOAD_DIR)
+create_folder(SEGMENTS_DIR)
+create_folder(SHORTS_DIR)
+create_folder(JSONS_DIR)
 
 uploaded_file = st.file_uploader(
     "Upload a video",
@@ -23,36 +27,47 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file:
-    unique_filename = f"{uuid.uuid4().hex[:3]}.mp4"
-    file_path = UPLOAD_DIR + f"/{unique_filename}"
-    with open(file_path, "wb") as f:
-        while chunk := uploaded_file.read(1024 * 1024): # This writes the file in 1MB chunks and is much better for huge uploads
-            f.write(chunk)
+    video_key = (uploaded_file.name, uploaded_file.size)
+    print("video_key", video_key)
+    if st.session_state.get("processed_video_key") != video_key:
+        clean_directory(UPLOAD_DIR)
 
-    st.success(f"Video saved successfully to {file_path}")
-    
-    st.header("1. Content understanding")
+        unique_filename = f"{uuid.uuid4().hex[:3]}.mp4"
+        file_path = UPLOAD_DIR + f"/{unique_filename}"
+        with open(file_path, "wb") as f:
+            while chunk := uploaded_file.read(1024 * 1024): # This writes the file in 1MB chunks and is much better for huge uploads
+                f.write(chunk)
 
-    st.subheader("1.1 Segmenting video")
-    clean_directory(SEGMENTS_DIR)    
-    segmenting(input_path = file_path, output_dir= SEGMENTS_DIR)
-    st.success("Segmenting complete")
-    
-    st.subheader("1.2 Extracting candidates")
-    extracting(segments_dir= SEGMENTS_DIR, video_path= file_path, output_path= CANDIDATES_FILE)
-    st.success("Extracting complete")
+        st.success(f"Video saved successfully to {file_path}")
 
-    st.subheader("1.3 Ranking candidates")
-    ranking(candidates_path= CANDIDATES_FILE, output_path= OUTPUT_FILE)
-    st.success("Ranking complete")
+        st.header("1. Content understanding")
 
-    st.subheader("1.4 Trimming")
-    clean_directory(SHORTS_DIR)
-    trimming(output_path= OUTPUT_FILE, shorts_dir= SHORTS_DIR)
-    st.success("Trimming complete")
+        st.subheader("1.1 Segmenting video")
+        clean_directory(SEGMENTS_DIR)
+        segmenting(input_path = file_path, output_dir= SEGMENTS_DIR)
+        st.success("Segmenting complete")
+
+        st.subheader("1.2 Extracting candidates")
+        extracting(segments_dir= SEGMENTS_DIR, video_path= file_path, output_path= CANDIDATES_FILE)
+        st.success("Extracting complete")
+
+        st.subheader("1.3 Ranking candidates")
+        ranking(candidates_path= CANDIDATES_FILE, output_path= OUTPUT_FILE)
+        st.success("Ranking complete")
+
+        st.subheader("1.4 Trimming")
+        clean_directory(SHORTS_DIR)
+        trimming(output_path= OUTPUT_FILE, shorts_dir= SHORTS_DIR)
+        st.success("Trimming complete")
+
+        st.session_state["processed_video_key"] = video_key
+        st.session_state["file_path"] = file_path
+    else:
+        file_path = st.session_state["file_path"]
+        st.success(f"Video saved successfully to {file_path}")
 
     st.header("2. Editing")
-    
+
     shorts = list(Path(SHORTS_DIR).glob("*.mp4"))
 
     with st.form("editing_form"):

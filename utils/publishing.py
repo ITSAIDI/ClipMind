@@ -5,10 +5,17 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from typing import TypedDict
-from utils.config import SCOPES, PICKLE_FILE, CLIENT_SECRET_FILE
+from utils.config import SCOPES, PICKLE_FILE
 import json
 import streamlit as st
 
+def load_client_config():
+    # Streamlit Cloud
+    if "google" in st.secrets:
+        value = st.secrets["google"]["client_secret"]
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
 
 class metadataType(TypedDict):
     title: str
@@ -65,11 +72,15 @@ def publish(short_path: str, metadata: metadataType)->None:
             if credentials and credentials.expired and credentials.refresh_token:
                 credentials.refresh(Request())
             else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    CLIENT_SECRET_FILE,
-                    SCOPES
-                )
+
+                client_config = load_client_config()
+                flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
                 credentials = flow.run_local_server(port=8080)
+                #flow = InstalledAppFlow.from_client_secrets_file(
+                 #   CLIENT_SECRET_FILE,
+                  #  SCOPES
+                #)
+                #credentials = flow.run_local_server(port=8080)
 
             with open(PICKLE_FILE, "wb") as token:
                 pickle.dump(credentials, token)

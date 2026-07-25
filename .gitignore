@@ -10,4 +10,5 @@ wheels/
 .venv
 secrets
 data
-uv.lock
+.streamlit/secrets.toml
+token.pickle
