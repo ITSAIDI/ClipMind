@@ -1,6 +1,6 @@
 from google import genai
 from google.genai import types
-
+from pathlib import Path
 import os
 import time
 import json
@@ -323,14 +323,16 @@ def apply_edits(short_path: str, do_reframing :bool, do_captioning :bool, do_aud
 
     st.write(f"Applying edits to **{short_path}**")
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    temp_dir = Path(short_path).parent 
+    temp_path = temp_dir / "temp.mp4"
 
-        temp_path = os.path.join(tmpdir, "temp.mp4")
+    if temp_path.exists():
+        temp_path.unlink() #  Deletes temp.mp4 if already exists
 
-        if do_reframing: run_step(reframing, short_path, temp_path)
-        if do_captioning: run_step(captioning, short_path, temp_path)
-        if do_audio: run_step(audio_mixing, short_path, temp_path)
-        if do_enhancing: run_step(enhancing, short_path, temp_path)
+    if do_reframing: run_step(reframing, short_path, temp_path)
+    if do_captioning: run_step(captioning, short_path, temp_path)
+    if do_audio: run_step(audio_mixing, short_path, temp_path)
+    if do_enhancing: run_step(enhancing, short_path, temp_path)
 
 # def apply_shorts(shorts_dir : str):
 #     for short_name in os.listdir(shorts_dir):
