@@ -75,7 +75,8 @@ def publish(short_path: str, metadata: metadataType)->None:
 
                 client_config = load_client_config()
                 flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-                credentials = flow.run_local_server(port=8080)
+                credentials = flow.run_local_server(port=8080, prompt="consent")
+
                 #flow = InstalledAppFlow.from_client_secrets_file(
                  #   CLIENT_SECRET_FILE,
                   #  SCOPES
